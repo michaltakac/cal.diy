@@ -2,6 +2,9 @@
 
 This guide covers running the forked **michaltakac/cal.diy** instance locally with Docker Compose.
 
+> **Payments:** fiat (Stripe) setup, env vars, and the automated test are in
+> [`stripe-fiat-integration.md`](./stripe-fiat-integration.md).
+
 ---
 
 ## Prerequisites
