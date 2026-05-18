@@ -1,0 +1,14 @@
+# Minimal local override — runs only the webapp + database + redis.
+# API v2 and Prisma Studio are optional; start with this compose file first.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+
+services:
+  calcom-api:
+    profiles:
+      - api  # only starts when --profile api is passed
+
+  studio:
+    profiles:
+      - studio  # only starts when --profile studio is passed
