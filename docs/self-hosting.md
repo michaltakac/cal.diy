@@ -54,6 +54,35 @@ App is then reachable at **http://localhost:3000**.
 
 ---
 
+## Loopback-only ingress (Agentic Consulting hosting)
+
+The base `docker-compose.yml` publishes `3000:3000`, which Docker binds on
+`0.0.0.0` (all host interfaces). For the Agentic Consulting deployment the host
+must bind **loopback only** and never `0.0.0.0`: public reach for Cal.diy is
+provided solely by an outbound-only named Cloudflare Tunnel
+(`agentic.randomfour.co`, AGE-28) that dials Cloudflare's edge and connects
+back to `127.0.0.1:3000`. No inbound host port is ever opened.
+
+`docker-compose.loopback.yml` is an isolated, additive override that uses
+`!override` to replace the inherited ports list with `127.0.0.1:3000:3000`
+(compose otherwise concatenates port lists, which would leave the `0.0.0.0`
+mapping in place). The upstream `docker-compose.yml` is left untouched so the
+fork stays rebaseable; dropping the `-f` file fully reverts the change.
+
+```bash
+docker compose -p cal-diy \
+  -f docker-compose.yml \
+  -f docker-compose.local.yml \
+  -f docker-compose.loopback.yml \
+  up -d --no-deps calcom
+
+# Verify: must show 127.0.0.1, never 0.0.0.0
+docker port cal-diy-calcom-1        # 3000/tcp -> 127.0.0.1:3000
+ss -ltn | grep ':3000'             # LISTEN 127.0.0.1:3000
+```
+
+---
+
 ## Optional Services
 
 ### API v2
