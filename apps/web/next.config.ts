@@ -264,7 +264,7 @@ const nextConfig = (phase: string): NextConfig => {
       // names at the webpack graph level, covering both server and client builds.
       // (AGE-34 P2 fix — drop when upstream or Next.js resolves natively.)
       config.plugins.push(
-        new webpack.NormalModuleReplacementPlugin(/^node:/, (resource) => {
+        new webpack.NormalModuleReplacementPlugin(/^node:/, (resource: { request: string }) => {
           resource.request = resource.request.replace(/^node:/, "");
         })
       );
