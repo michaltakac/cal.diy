@@ -256,6 +256,20 @@ const nextConfig = (phase: string): NextConfig => {
     images: {
       unoptimized: true,
     },
+    webpack: (config, { webpack }) => {
+      // Strip node: scheme prefix so webpack resolves built-ins correctly.
+      // Next.js 16 --webpack mode doesn't register the node: resolver plugin,
+      // causing UnhandledSchemeError for node:path, node:process, etc. across
+      // transpilePackages. NormalModuleReplacementPlugin rewrites them to bare
+      // names at the webpack graph level, covering both server and client builds.
+      // (AGE-34 P2 fix — drop when upstream or Next.js resolves natively.)
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(/^node:/, (resource) => {
+          resource.request = resource.request.replace(/^node:/, "");
+        })
+      );
+      return config;
+    },
     turbopack: {},
     async rewrites() {
       const { orgSlug } = nextJsOrgRewriteConfig;
