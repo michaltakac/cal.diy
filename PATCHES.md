@@ -24,3 +24,12 @@ list minimal — prefer config/env over code changes.
   upstream's Turbopack build is verified working), delete this patch.
 - **Scope:** production `next build` only. `dev` still uses
   `next dev --turbopack` (unchanged) so local DX is unaffected.
+
+## P2 — Strip `node:` prefix from built-in imports
+
+- **Files:** 24 source files across `apps/web/` (app router API routes, lib, modules, pages, server/lib)
+- **Change:** Replace `import x from "node:path"` → `import x from "path"` for all Node.js built-ins; remove `import process from "node:process"` entirely (process is a Next.js global in both server and client builds).
+- **Why:** Next.js 16.2.3 with `--webpack` does not register the `node:` protocol resolver plugin, causing `UnhandledSchemeError: Reading from "node:path" is not handled by plugins` for any import using the `node:` scheme prefix. webpack 5 supports `node:` scheme only when the appropriate resolver plugin is registered, which Next.js's `--webpack` path does not configure.
+- **Tracking issue:** AGE-34.
+- **Drop when:** Upstream cal.diy removes `node:` prefix imports, or a future Next.js version enables the `node:` resolver in its webpack config.
+- **Scope:** Source files only. Playwright e2e tests and `__tests__` unit test files are left as-is (not bundled by Next.js build).
