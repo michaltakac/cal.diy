@@ -1,4 +1,3 @@
-import process from "node:process";
 import { sendEmailVerification } from "@calcom/features/auth/lib/verifyEmail";
 import { SIGNUP_ERROR_CODES } from "@calcom/features/auth/signup/constants";
 import { createOrUpdateMemberships } from "@calcom/features/auth/signup/utils/createOrUpdateMemberships";

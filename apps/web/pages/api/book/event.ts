@@ -1,4 +1,3 @@
-import process from "node:process";
 import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
 import { getRegularBookingService } from "@calcom/features/bookings/di/RegularBookingService.container";
 import { BotDetectionService } from "@calcom/features/bot-detection";

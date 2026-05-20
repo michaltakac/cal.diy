@@ -1,4 +1,3 @@
-import process from "node:process";
 import { BookingRepository } from "@calcom/features/bookings/repositories/BookingRepository";
 import { DefaultAdapterFactory } from "@calcom/features/calendar-subscription/adapters/AdaptersFactory";
 import { CalendarSubscriptionService } from "@calcom/features/calendar-subscription/lib/CalendarSubscriptionService";

@@ -1,4 +1,3 @@
-import process from "node:process";
 import { getPremiumMonthlyPlanPriceId } from "@calcom/app-store/stripepayment/lib/utils";
 import { getLocaleFromRequest } from "@calcom/features/auth/lib/getLocaleFromRequest";
 import { sendEmailVerification } from "@calcom/features/auth/lib/verifyEmail";

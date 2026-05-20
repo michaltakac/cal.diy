@@ -1,4 +1,3 @@
-import process from "node:process";
 import { getCspHeader, getCspNonce } from "@lib/csp";
 import { get } from "@vercel/edge-config";
 import type { NextRequest } from "next/server";

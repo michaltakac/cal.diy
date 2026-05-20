@@ -1,4 +1,3 @@
-import process from "node:process";
 import { WEBAPP_URL } from "@calcom/lib/constants";
 import { symmetricDecrypt } from "@calcom/lib/crypto";
 import { distributedTracing } from "@calcom/lib/tracing/factory";
