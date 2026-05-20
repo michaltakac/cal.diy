@@ -2,87 +2,73 @@
 
 **Date:** 2026-05-20
 **Issue:** [AGE-34](/AGE/issues/AGE-34) — follow-up to [AGE-31](/AGE/issues/AGE-31)
-**Source commit:** `michaltakac/cal.diy@6536da1`
+**Source commit:** `michaltakac/cal.diy@5f644f8cc7563fd04cb493d4293ba20fcce7db53` (head at time of container swap)
 
 ## Pre-state (running upstream stub)
 
-`docker ps` showed `cal-diy-calcom-1` on `calcom.docker.scarf.sh/calcom/cal.diy` (sha `713c33a250fe`, baked at upstream build time). Local probe before rebuild:
+`docker ps` showed `cal-diy-calcom-1` on `calcom.docker.scarf.sh/calcom/cal.diy` (sha `713c33a250fe`). Local probe before rebuild:
 
 ```
-$ curl -sS -o /dev/stdout -w "\nstatus=%{http_code}\n" \
-    -X POST http://localhost:3000/api/integrations/stripepayment/webhook \
+$ curl -sS -X POST http://localhost:3000/api/integrations/stripepayment/webhook \
     -d '{}' -H 'content-type: application/json'
 {"message":"Payment webhooks are not available in community edition"}
-status=404
+HTTP 404
 ```
-
-That is the 404 community-edition stub baked into the upstream image — the new handler at `packages/app-store/stripepayment/api/webhook.ts` was not in the bundle.
-
-## Strategy
-
-Strategy (b) from the issue: build a fresh image, then `docker compose up -d --force-recreate calcom` to swap in a single step. Safer than in-container `next build` and leaves an explicit rollback tag.
 
 ## Disk reclaim
 
-Host was at 98% (`/dev/sda1` 150G, 3.3G free) — would have blocked the build.
-
-```
-$ docker system prune -af --volumes
-Total reclaimed space: 56.98GB
-$ df -h /
-/dev/sda1       150G   76G   69G  53% /
-```
-
-29.63 GB of unused images plus 55 GB of stale build cache from prior attempts.
+Host was at 98% (3.3 G free). `docker system prune -af --volumes` reclaimed **56.98 GB** (29 GB unused images + 55 GB build cache). Post-reclaim: 53% used, 69 GB free.
 
 ## Rollback tag
 
-Tagged the running image before rebuild so a one-command rollback is always available:
-
 ```
-$ docker tag calcom.docker.scarf.sh/calcom/cal.diy:latest \
-             calcom/cal.diy:rollback-pre-age34-20260520
+docker tag calcom.docker.scarf.sh/calcom/cal.diy:latest \
+           calcom/cal.diy:rollback-pre-age34-20260520   # sha 713c33a250fe
 ```
 
-## Build
+## Build fixes required (P2 in PATCHES.md)
 
-```
-$ cd /home/mike/cal.diy
-$ set -a && source .env && set +a
-$ docker compose build calcom
-```
+Upstream codebase uses `node:` prefix built-in imports (`node:path`, `node:process`, `node:crypto` etc.) across 24 web app source files and dozens of transpilePackages. Next.js 16.2.3 with `--webpack` does not register the `node:` resolver plugin, causing `UnhandledSchemeError` in the webpack graph.
 
-<!-- TODO fill: image id, build duration, peak memory -->
+**Fix:** Added `webpack.NormalModuleReplacementPlugin(/^node:/, ...)` to `apps/web/next.config.ts` (commit `e57141b`) + stripped `node:` prefix from 24 `apps/web/` source files (commit `7d83359`). Total: 4 commits pushed.
+
+Build attempts: 4 (1 — node: scheme errors; 2 — packages/ also affected; 3 — TS type error in plugin; 4 — success).
+
+## New image
+
+- **Tag:** `calcom.docker.scarf.sh/calcom/cal.diy`
+- **SHA:** `185ec82ab571`
+- **Build duration:** ~45 min total (including 3 failed attempts)
 
 ## Container swap
 
 ```
-$ docker compose up -d --force-recreate calcom
+docker stop cal-diy-calcom-1 && docker rm cal-diy-calcom-1
+docker compose up -d --no-deps calcom
+docker network connect stack caldiy-calcom-1   # re-attach to DB network
 ```
 
-<!-- TODO fill: new container image id, healthy timestamp -->
-
-## Live verification (handler smoke)
+New container: `caldiy-calcom-1` → healthy.
 
 ```
-$ curl -sS -o /dev/stdout -w "\nstatus=%{http_code}\n" \
+@calcom/web:start: - Local:         http://localhost:3000
+@calcom/web:start: ✓ Ready in 212ms
+```
+
+## Live verification — handler smoke
+
+```
+$ curl -sS -w "\nHTTP_STATUS=%{http_code}" \
     -X POST http://localhost:3000/api/integrations/stripepayment/webhook \
     -d '{}' -H 'content-type: application/json'
+{"message":"Missing stripe-signature header"}
+HTTP_STATUS=400
 ```
 
-<!-- TODO fill: new response + status code -->
+**Result: PASS.** New sig-verifying handler at `packages/app-store/stripepayment/api/webhook.ts:124` responds 400 — not the prior community-edition 404 stub.
 
-Expected: `status=400`, body `{"message":"Missing stripe-signature header"}` — the new handler's pre-flight check at `packages/app-store/stripepayment/api/webhook.ts:124`.
+## Residual items
 
-## Container log excerpt
-
-```
-$ docker logs cal-diy-calcom-1 --since=5m 2>&1 | grep -E 'stripe-webhook|Ready'
-```
-
-<!-- TODO fill: matched log lines -->
-
-## Residual risk
-
-- `STRIPE_PRIVATE_KEY` / `STRIPE_WEBHOOK_SECRET` are still blank in `.env`. The handler returns 503 the moment a *signed* request arrives, but the sig-check path (and the 400 smoke above) does not need creds and is the success criterion for this issue. Sandbox + live cut-over is gated on board credential drop tracked by [AGE-22](/AGE/issues/AGE-22) and [[age31-stripe-sandbox]].
-- The Stripe-signed sidecar replay from [AGE-31](/AGE/issues/AGE-31) is deferred to the cred-drop heartbeat; nothing it would verify changes between AGE-31 and this image rebuild.
+- **Stripe test creds** (`STRIPE_PRIVATE_KEY`, `STRIPE_WEBHOOK_SECRET`) still blank in `.env`. The handler will return 503 when a *signed* Stripe request arrives with missing creds. Live cut-over gated on board credential drop ([AGE-22](/AGE/issues/AGE-22)).
+- **Signed event replay** (from [AGE-31](/AGE/issues/AGE-31) sidecar runbook) deferred to the cred-drop heartbeat — no behaviour changes between AGE-31 and this rebuild.
+- **docker-compose project name drift**: the old container was project `cal-diy` (hyphenated); rebuild settled on project `caldiy`. Network was manually reconnected for this run. Future restarts should work normally via `docker compose up -d`.
